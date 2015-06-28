@@ -104,8 +104,6 @@ object lojavirtual {
     
       var preco = 0
       var estoque = 0
-      //iterar na lista de produtos tuplas
-      for(x <- 0 until produtosBD.length){
         //pegar a tupla do produto acessado
         var produto = produtosBD.head
         if(produtoConsultado == produto._1){
@@ -119,6 +117,7 @@ object lojavirtual {
             var itemAtualizado = (produto._1, produto._2, produto._3 - 1)
             //atualizar lista com tupla modificada
             produtosBD = itemAtualizado::produtosBD.tail
+            
             //retornar separaEstoque OK!
             respostaSeparaEstoqueBD!true
             } else {
@@ -126,9 +125,26 @@ object lojavirtual {
               respostaSeparaEstoqueBD!false
             }
         } else {
+          var produto2 = produtosBD.tail.head
+          //pegar o preco do produto acessado
+          preco = produto2._2
+          //pegar o estoque do produto acessado
+          estoque = produto2._3
+
+          if(estoque > 0){
+            //atualizar estoque na tupla
+            var itemAtualizado = (produto2._1, produto2._2, produto2._3 - 1)
+            //atualizar lista com tupla modificada
+            produtosBD = List(produto, itemAtualizado)
+            
+            //retornar separaEstoque OK!
+            respostaSeparaEstoqueBD!true
+            } else {
+             //retornar separaEstoque False!
+              respostaSeparaEstoqueBD!false
+            }
           produtosBD = produtosBD.reverse
         }
-      }
   }
   
   def ACESSOSCLIENTES(consultaProdutoBD: ![String], respostaPrecoBD: ?[Int], respostaEstoqueBD: ?[Int], separaEstoqueBD: ![String], respostaSeparaEstoqueBD: ?[Boolean]) = proc {
