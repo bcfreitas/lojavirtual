@@ -8,10 +8,10 @@ import java.util.Random
 object lojavirtual {
   
     val produtos = List("Smartphone", "TV")
-    val produtosBD = List(("Smartphone", 100, 2), ("TV", 200, 1))
+    var produtosBD = List(("Smartphone", 100, 2), ("TV", 200, 1))
   
   //respostaProdutoBD dividido em respostaPrecoBD e respostaEstoqueBD.
-  def ACESSOCLIENTE(i: Int, consultaProdutoBD: ![String], respostaPrecoBD: ?[Int], respostaEstoqueBD: ?[Int], separaEstoqueBD: ![String] ) = proc {
+  def ACESSOCLIENTE(i: Int, consultaProdutoBD: ![String], respostaPrecoBD: ?[Int], respostaEstoqueBD: ?[Int], separaEstoqueBD: ![String], respostaSeparaEstoqueBD: ?[Boolean] ) = proc {
     println("acessoCliente." + i)
     //o sleep abaixo é pra garantir seeds diferentes da randomização
     Thread.sleep(i * 300)
@@ -48,26 +48,38 @@ object lojavirtual {
       
       println("respostaPrecoBD."+i+"."+preco)
       println("respostaEstoqueBD."+i+"."+estoque)
-      //val prod = Console.readInt()
       
       //se houver estoque oferece adicionarCarrinho, senao mensagemEstoqueIndisponivel
       if(estoque>0){
         println("adicionaCarrinho." + i + "." + produtoAcessado)
+        Thread.sleep(500)
         println("separaEstoque." + i + "." + produtoAcessado)
+        Thread.sleep(500)
+        separaEstoqueBD!produtoAcessado
         
-        
-        
+        var retorno = respostaSeparaEstoqueBD? ;
+        retorno match {
+          case true => println("enviaProduto")
+          case false => println("Estoque indisponível")
+        }
+      } else { 
+        println("Estoque indisponivel")
       }
       
       
     }
   }
   
-  def BDLOJA(consultaProdutoBD: ?[String], respostaPrecoBD: ![Int], respostaEstoqueBD: ![Int], separaEstoqueBD: ?[String]) = proc {
+  def BDLOJA(consultaProdutoBD: ?[String], respostaPrecoBD: ![Int], respostaEstoqueBD: ![Int], separaEstoqueBD: ?[String], respostaSeparaEstoqueBD: ![Boolean]) = proc {
     var produtoAcessado = ""
     while(true){
-      produtoAcessado = consultaProdutoBD? ;
-      
+      alt ((true &&& consultaProdutoBD) =?=> { produto => CONSULTABD(produto, respostaPrecoBD, respostaEstoqueBD)() }
+        | (true &&& separaEstoqueBD) =?=> { produto => SEPARAESTOQUEBD(produto, respostaSeparaEstoqueBD)() }
+      )
+    } 
+  }
+  
+  def CONSULTABD(produtoConsultado: String, respostaPrecoBD: ![Int], respostaEstoqueBD: ![Int]) = proc {
       var preco = 0
       var estoque = 0
       
@@ -75,7 +87,7 @@ object lojavirtual {
       for(x <- 0 until produtosBD.length){
         //pegar a tupla do produto acessado
         var produto = produtosBD(x)
-        if(produtoAcessado == produto._1){
+        if(produtoConsultado == produto._1){
           //pegar o preco do produto acessado
           preco = produto._2
           //pegar o estoque do produto acessado
@@ -85,11 +97,42 @@ object lojavirtual {
 
       respostaPrecoBD!preco
       respostaEstoqueBD!estoque
-    } 
+      
   }
   
-  def ACESSOSCLIENTES(consultaProdutoBD: ![String], respostaPrecoBD: ?[Int], respostaEstoqueBD: ?[Int], separaEstoqueBD: ![String]) = proc {
-    (|| (for (i <- 1 until 3) yield ACESSOCLIENTE(i,consultaProdutoBD, respostaPrecoBD, respostaEstoqueBD, separaEstoqueBD)))()
+  def SEPARAESTOQUEBD(produtoConsultado: String, respostaSeparaEstoqueBD: ![Boolean]) = proc {
+    
+      var preco = 0
+      var estoque = 0
+      //iterar na lista de produtos tuplas
+      for(x <- 0 until produtosBD.length){
+        //pegar a tupla do produto acessado
+        var produto = produtosBD.head
+        if(produtoConsultado == produto._1){
+          //pegar o preco do produto acessado
+          preco = produto._2
+          //pegar o estoque do produto acessado
+          estoque = produto._3
+
+          if(estoque > 0){
+            //atualizar estoque na tupla
+            var itemAtualizado = (produto._1, produto._2, produto._3 - 1)
+            //atualizar lista com tupla modificada
+            produtosBD = itemAtualizado::produtosBD.tail
+            //retornar separaEstoque OK!
+            respostaSeparaEstoqueBD!true
+            } else {
+             //retornar separaEstoque False!
+              respostaSeparaEstoqueBD!false
+            }
+        } else {
+          produtosBD = produtosBD.reverse
+        }
+      }
+  }
+  
+  def ACESSOSCLIENTES(consultaProdutoBD: ![String], respostaPrecoBD: ?[Int], respostaEstoqueBD: ?[Int], separaEstoqueBD: ![String], respostaSeparaEstoqueBD: ?[Boolean]) = proc {
+    (|| (for (i <- 1 until 3) yield ACESSOCLIENTE(i,consultaProdutoBD, respostaPrecoBD, respostaEstoqueBD, separaEstoqueBD, respostaSeparaEstoqueBD)))()
   }
   
   def main(args: Array[String]) {
@@ -97,11 +140,12 @@ object lojavirtual {
     val respostaPrecoBD = OneOne[Int]
     val respostaEstoqueBD = OneOne[Int]
     val separaEstoqueBD = OneOne[String]
+    val respostaSeparaEstoqueBD = OneOne[Boolean]
     
     val produtos = List("Smartphone", "TV")
     val produtosBD = List(("Smartphone", 100, 2), ("TV", 200, 1))
 
-    (ACESSOSCLIENTES(consultaProdutoBD, respostaPrecoBD, respostaEstoqueBD, separaEstoqueBD) || BDLOJA(consultaProdutoBD, respostaPrecoBD, respostaEstoqueBD, separaEstoqueBD))()
+    (ACESSOSCLIENTES(consultaProdutoBD, respostaPrecoBD, respostaEstoqueBD, separaEstoqueBD, respostaSeparaEstoqueBD) || BDLOJA(consultaProdutoBD, respostaPrecoBD, respostaEstoqueBD, separaEstoqueBD, respostaSeparaEstoqueBD))()
     exit
   }
   
