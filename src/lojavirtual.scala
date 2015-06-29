@@ -11,10 +11,13 @@ object lojavirtual {
     var produtosBD = List(("Smartphone", 100, 2), ("TV", 200, 1))
     val usuarios = List("Joao", "Maria")
     val usuariosBD = Map("Joao" -> "123", "Maria" -> "345")
+    var repositorioCartoes= List((1111111, "Joao", 500), (2222222,"Maria", 100))
+
   
   //respostaProdutoBD dividido em respostaPrecoBD e respostaEstoqueBD.
   def ACESSOCLIENTE(i: Int, consultaProdutoBD: ![String], respostaPrecoBD: ?[Int], respostaEstoqueBD: ?[Int], separaEstoqueBD: ![String], 
-                      respostaSeparaEstoqueBD: ?[Boolean], reverteEstoqueBD: ![String], autenticaUsuario: ![String], enviaSenha: ![String], retornoLogin: ?[Boolean] ) = proc {
+                      respostaSeparaEstoqueBD: ?[Boolean], reverteEstoqueBD: ![String], autenticaUsuario: ![String], enviaSenha: ![String], 
+                      retornoLogin: ?[Boolean], handshakeOperadora: ![(Int,String,Int)], confirmaTransacaoCredito: ?[Boolean] ) = proc {
     println("acessoCliente." + i)
     //o sleep abaixo é pra garantir seeds diferentes da randomização
     Thread.sleep(i * 300)
@@ -83,9 +86,15 @@ object lojavirtual {
         
         randomInt%3 match {
           case 0 => {
-            println("concluirCompra." + i)
+            //calculando o total da compra para concluir
+            var total = 0
+            for(x <- 0 until carrinho.length){
+              total = total + carrinho(x)._2
+            }
             
-            var logado = false;
+            println("concluirCompra." + i + "." + total)
+            
+            var logado = false
             //convencionei acesso 1 = joao e acesso 2 = maria
             
             while(!logado){
@@ -95,6 +104,7 @@ object lojavirtual {
               //randomizando para enviar senha
               var senha = ""
               var seed = new Random(System.currentTimeMillis())
+              Thread.sleep(200)
               var randomInt = 0
               randomInt = seed.nextInt(10)
               
@@ -111,6 +121,49 @@ object lojavirtual {
               
               logado = retornoLogin? ;
               println("retornoLogin." + i + "."+logado)
+            }
+            
+            println("escolherFormaDePagamento." + i + "." + total)
+            var pagamentoRealizado = false
+            
+            while(!pagamentoRealizado){
+              //randomizando escolha de forma de pagamento
+              var seed = new Random(System.currentTimeMillis())
+              var randomInt = 0
+              randomInt = seed.nextInt(10)
+              
+          
+              randomInt%2 match {
+                case 0 => {
+                  println("pagamentoDebitoOnline")  
+                }
+                case 1 => {
+                  println("pagamentoCartaoCredito." + i + "."+ total)
+                  var cartao = 0
+                  var nome = ""
+                  i match {
+                    case 1 => {
+                      cartao = 1111111
+                      nome = "Joao"
+                    }
+                    case 2 => {
+                      cartao = 2222222
+                      nome = "Maria"
+                    }
+                  }
+                  println("handshakeOperadora." + i + "." + "(" + cartao + ", " + nome + ", " + total +")")
+                  handshakeOperadora!(cartao, nome, total)
+                  
+                  var retorno = confirmaTransacaoCredito? ;
+                  
+                  if(retorno == true){ 
+                    println("pagou com sucesso!!!")
+                    pagamentoRealizado = true
+                  } else {
+                    println("nao pagou com sucesso")
+                  }
+                }
+              }
             }
             
             for(x <- 0 until carrinho.length){
@@ -263,9 +316,55 @@ object lojavirtual {
   }  
     
   def ACESSOSCLIENTES(consultaProdutoBD: ![String], respostaPrecoBD: ?[Int], respostaEstoqueBD: ?[Int], separaEstoqueBD: ![String], 
-      respostaSeparaEstoqueBD: ?[Boolean], reverteEstoqueBD: ![String], autenticaUsuario: ![String], enviaSenha: ![String], retornoLogin: ?[Boolean]) = proc {
-    (|| (for (i <- 1 until 3) yield ACESSOCLIENTE(i,consultaProdutoBD, respostaPrecoBD, respostaEstoqueBD, separaEstoqueBD, respostaSeparaEstoqueBD, reverteEstoqueBD, autenticaUsuario, enviaSenha, retornoLogin)))()
+      respostaSeparaEstoqueBD: ?[Boolean], reverteEstoqueBD: ![String], autenticaUsuario: ![String], enviaSenha: ![String],
+      retornoLogin: ?[Boolean], handshakeOperadora: ![(Int, String, Int)], confirmaTransacaoCredito: ?[Boolean]) = proc {
+    (|| (for (i <- 1 until 3) yield ACESSOCLIENTE(i,consultaProdutoBD, respostaPrecoBD, respostaEstoqueBD, separaEstoqueBD, 
+                                      respostaSeparaEstoqueBD, reverteEstoqueBD, autenticaUsuario, enviaSenha, retornoLogin,
+                                      handshakeOperadora, confirmaTransacaoCredito)))()
   }
+  
+  def OPERADORACARTAO(handshakeOperadora: ?[(Int, String, Int)], confirmaTransacaoCredito: ![Boolean]) = proc {
+    while(true){
+      alt ((true &&& handshakeOperadora) =?=> { dadosCartao => PAGAMENTOCREDITO(dadosCartao, confirmaTransacaoCredito)()  } )
+    }
+  }
+  
+  def PAGAMENTOCREDITO(dadosCartao: (Int, String, Int), confirmaTransacaoCredito: ![Boolean]) = proc {
+    
+      var numCartao = dadosCartao._1
+      var nomeCartao = dadosCartao._2
+      var total = dadosCartao._3
+      
+      //localiza o cartao no repositorio
+        var registro = repositorioCartoes.head        
+        if(registro._1 == numCartao){
+          if(registro._2 == nomeCartao) {
+            //checa saldo
+            if(registro._3 >= total){
+              //autoriza
+               repositorioCartoes = (numCartao, nomeCartao, registro._3 - total)::repositorioCartoes.tail
+               confirmaTransacaoCredito!true
+            } else { 
+              //nao autoriza
+               confirmaTransacaoCredito!false
+            }
+          } 
+        } else { 
+          var registro2 = repositorioCartoes.tail.head
+            if(registro2._2 == nomeCartao) {
+            //checa saldo
+              if(registro2._3 >= total){
+              //autoriza
+                 repositorioCartoes = List(registro, (numCartao, nomeCartao, registro2._3 - total))
+                 confirmaTransacaoCredito!true
+              } else { 
+                //nao autoriza
+                 confirmaTransacaoCredito!false
+              }
+            }
+        }
+      }
+
   
   def main(args: Array[String]) {
     val consultaProdutoBD = OneOne[String]
@@ -277,11 +376,17 @@ object lojavirtual {
     val autenticaUsuario = OneOne[String]
     val enviaSenha = OneOne[String]
     val retornoLogin = OneOne[Boolean]
+    val handshakeOperadora = OneOne[(Int, String, Int)]
+    val confirmaTransacaoCredito = OneOne[Boolean]
     
     val produtos = List("Smartphone", "TV")
     val produtosBD = List(("Smartphone", 100, 2), ("TV", 200, 1))
 
-    (ACESSOSCLIENTES(consultaProdutoBD, respostaPrecoBD, respostaEstoqueBD, separaEstoqueBD, respostaSeparaEstoqueBD, reverteEstoqueBD, autenticaUsuario, enviaSenha, retornoLogin) || BDLOJA(consultaProdutoBD, respostaPrecoBD, respostaEstoqueBD, separaEstoqueBD, respostaSeparaEstoqueBD, reverteEstoqueBD, autenticaUsuario, enviaSenha, retornoLogin))()
+    (ACESSOSCLIENTES(consultaProdutoBD, respostaPrecoBD, respostaEstoqueBD, separaEstoqueBD, 
+        respostaSeparaEstoqueBD, reverteEstoqueBD, autenticaUsuario, enviaSenha, retornoLogin, handshakeOperadora, confirmaTransacaoCredito) 
+     || BDLOJA(consultaProdutoBD, respostaPrecoBD, respostaEstoqueBD, separaEstoqueBD, 
+        respostaSeparaEstoqueBD, reverteEstoqueBD, autenticaUsuario, enviaSenha, retornoLogin)
+     || OPERADORACARTAO(handshakeOperadora, confirmaTransacaoCredito))()
     exit
   }
   
